@@ -28,7 +28,7 @@ The framework consists of two interacting components: **ns-3** and **Sionna**, w
 ### 1. Installing ns3-rt (this repository)
 
 ```bash
-git clone https://github.com/osst3224/ns3-rt-mpobility.git
+git clone https://github.com/osst3224/ns3-rt-mobility.git
 cd ns3-rt
 ./ns3 configure --disable-python --enable-examples
 ./ns3 build
