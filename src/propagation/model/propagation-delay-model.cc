@@ -15,6 +15,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * Author: Mathieu Lacage <mathieu.lacage@sophia.inria.fr>
+ * Modified by:
+ *          Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 #include "propagation-delay-model.h"
 
@@ -22,6 +24,7 @@
 #include "ns3/mobility-model.h"
 #include "ns3/pointer.h"
 #include "ns3/string.h"
+#include "ns3/lte-module.h"
 
 namespace ns3
 {
@@ -127,6 +130,14 @@ ConstantSpeedPropagationDelayModel::GetDelay(Ptr<MobilityModel> a, Ptr<MobilityM
     double a_angle = atan2(a_velocity.y, a_velocity.x) * 180.0 / M_PI;
     double b_angle = atan2(b_velocity.y, b_velocity.x) * 180.0 / M_PI;
 
+    Ptr<Node> nodeA = a->GetObject<Node>();
+    NS_ABORT_MSG_IF(!nodeA, "Error: Ptr<Node> nodeA (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
+    Ptr<Node> nodeB = b->GetObject<Node>();
+    NS_ABORT_MSG_IF(!nodeA, "Error: Ptr<Node> nodeB (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
+
+    uint32_t idA = nodeA->GetId();
+    uint32_t idB = nodeB->GetId();
+
     double distance = a->GetDistanceFrom(b);
 
     double seconds = distance / m_speed;
@@ -136,19 +147,21 @@ ConstantSpeedPropagationDelayModel::GetDelay(Ptr<MobilityModel> a, Ptr<MobilityM
     double ns3_delay_ms = milliseconds;
     double sionna_delay, sionna_delay_ms;
 
+    uint32_t t_now = (uint32_t)Simulator::Now().GetMicroSeconds();
+
+    Ptr<NetDevice> devA = nodeA->GetDevice(0);  // assuming LTE is the first device
+    Ptr<LteEnbNetDevice> enbDevA = devA->GetObject<LteEnbNetDevice>();
+    Ptr<LteUeNetDevice> ueDevA = devA->GetObject<LteUeNetDevice>();
+
     if (m_sionna)
     {
-        // 2 - Retreive the NodeID associated to the Ptr<MobilityModel>
-        Ptr<Node> nodeA = a->GetObject<Node>();
-        NS_ABORT_MSG_IF(!nodeA, "Error: Ptr<MobilityModel> a (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
-        std::string a_id = "obj" + std::to_string(nodeA->GetId() + 1);
-        Ptr<Node> nodeB = b->GetObject<Node>();
-        NS_ABORT_MSG_IF(!nodeB, "Error: Ptr<MobilityModel> b (usually RX) not linked to a Node. This is needed for Sionna to track the object location!");
-        std::string b_id = "obj" + std::to_string(nodeB->GetId() + 1);
 
-        // 3 - Location Update to Sionna
+
+        std::string a_id = "obj" + std::to_string(idA - 2); // To change back: obj_a = "obj"
+        std::string b_id = "obj" + std::to_string(idB - 2); // To change back: obj_b = "obj"
         updateLocationInSionna(a_id, a_position, a_angle, a_velocity);
         updateLocationInSionna(b_id, b_position, b_angle, b_velocity);
+
 
         sionna_delay = getPropagationDelayFromSionna(a_position, b_position);
         sionna_delay_ms = sionna_delay * 1000;

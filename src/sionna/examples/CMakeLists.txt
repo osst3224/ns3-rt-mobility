@@ -1,6 +1,8 @@
 build_lib_example(
   NAME simple-sionna-example
-  SOURCE_FILES simple-sionna-example.cc
+  SOURCE_FILES 
+  simple-sionna-example.cc
+  ue-trajectory.cc
   LIBRARIES_TO_LINK
     ${libsionna}
     ${libcore}
@@ -9,4 +11,5 @@ build_lib_example(
     ${libnetwork}
     ${libmobility}
     ${libapplications}
+    ${libflow-monitor}
 )

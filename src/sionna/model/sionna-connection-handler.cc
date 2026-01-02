@@ -143,12 +143,13 @@ updateLocationInSionna(std::string obj_id, Vector Position, double Angle, Vector
   double z_speed = Velocity.z;
   
   // Same for direction angle (heading), applying to objects causes kernel crash.
-  double angle = atan2(y_speed, x_speed) * 180.0 / M_PI;
+  //double angle = atan2(y_speed, x_speed) * 180.0 / M_PI; // Remove * 180.0 / M_PI ? Sionna: new_orientation = ((360 - new_angle) % 360 + 90)*np.pi/180
+
 
   std::string message_for_Sionna = "LOC_UPDATE:" + obj_id + "," + std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + "," 
                                                  + std::to_string(Angle) + "," 
                                                  + std::to_string(x_speed) + "," + std::to_string(y_speed) + "," + std::to_string(z_speed);
-  
+
   
   NS_LOG_DEBUG("Sending message to Sionna: " << message_for_Sionna << "...");
   sendMessageToSionna(message_for_Sionna);
@@ -156,9 +157,8 @@ updateLocationInSionna(std::string obj_id, Vector Position, double Angle, Vector
 
   while (!updated) {
       std::string server_response = receiveMessageFromSionna();
-
       if (server_response == expected_confirmation_message) {
-          objectPositions[obj_id] = {std::to_string(x), std::to_string(y), std::to_string(z), std::to_string(angle)};
+          objectPositions[obj_id] = {std::to_string(x), std::to_string(y), std::to_string(z), std::to_string(Angle)};
           updated = true;
           NS_LOG_DEBUG("LOC_CONFIRM message successfully received from Sionna.");
         }
@@ -342,7 +342,7 @@ logProgress(int piece, std::string chunk) {
   csv_file.seekp (0, std::ios::end);
   if (csv_file.tellp() == 0)
     {
-      csv_file << "delay_ms_ns3,delay_ms_sionna,tx_id,rx_id,rxPower_ns3,rxPower_sionna,LOS" << std::endl;
+      csv_file << "tx_id,rx_id,rxPower_ns3,rxPower_sionna,LOS,time" << std::endl;
     }
 
   // Piece 0 = delays
@@ -369,6 +369,10 @@ logProgress(int piece, std::string chunk) {
       // Append the final piece of data and write the row to the CSV file
       row += chunk;
       sionna_los_status[2] = true;
+
+      std::string timeString = std::to_string(Simulator::Now().GetSeconds());
+      row += "," + timeString; 
+
       if (sionna_los_status[1] && sionna_los_status[2])
         {
           csv_file << row << std::endl;
@@ -378,4 +382,3 @@ logProgress(int piece, std::string chunk) {
     }
 }
 }
-

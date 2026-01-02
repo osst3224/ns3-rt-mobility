@@ -19,6 +19,8 @@
  * Contributions: Gary Pei <guangyu.pei@boeing.com> for fixed RSS
  * Contributions: Tom Hewer <tomhewer@mac.com> for two ray ground model
  *                Pavel Boyko <boyko@iitp.ru> for matrix
+ * Modified by:
+ *          Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 
 #ifndef PROPAGATION_LOSS_MODEL_H
@@ -808,6 +810,9 @@ class RangePropagationLossModel : public PropagationLossModel
 
     double m_range; //!< Maximum Transmission Range (meters)
 };
+
+std::pair<double, double> SionnaPowerLos(uint32_t idA,
+                                         uint32_t idB);
 
 } // namespace ns3
 

@@ -18,6 +18,8 @@
  * Contributions: Timo Bingmann <timo.bingmann@student.kit.edu>
  * Contributions: Tom Hewer <tomhewer@mac.com> for Two Ray Ground Model
  *                Pavel Boyko <boyko@iitp.ru> for matrix
+ * Modified by:
+ *          Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 
 #include "propagation-loss-model.h"
@@ -28,6 +30,7 @@
 #include "ns3/mobility-model.h"
 #include "ns3/pointer.h"
 #include "ns3/string.h"
+#include "ns3/lte-module.h"
 
 #include <cmath>
 
@@ -39,6 +42,8 @@ NS_LOG_COMPONENT_DEFINE("PropagationLossModel");
 // ------------------------------------------------------------------------- //
 
 NS_OBJECT_ENSURE_REGISTERED(PropagationLossModel);
+
+static std::map<std::pair<uint32_t, uint32_t>, std::tuple<double, double, std::string>> s_powerCache;
 
 TypeId
 PropagationLossModel::GetTypeId()
@@ -79,45 +84,100 @@ PropagationLossModel::CalcRxPower(double txPowerDbm,
                                   Ptr<MobilityModel> a,
                                   Ptr<MobilityModel> b) const
 {
+
     // 1 - Get xyz Coordinates, Velocities and Heading Angle for a and b
     Vector a_position = a->GetPosition();
     Vector b_position = b->GetPosition();
     Vector a_velocity = a->GetVelocity();
     Vector b_velocity = b->GetVelocity();
 
+    //std::cout << "a_velocity: " << a_velocity << std::endl;
+    //std::cout << "b_velocity: " << b_velocity << std::endl;
+
     double a_angle = atan2(a_velocity.y, a_velocity.x) * 180.0 / M_PI;
     double b_angle = atan2(b_velocity.y, b_velocity.x) * 180.0 / M_PI;
 
+    //std::cout << "a_angle: " << a_angle << std::endl;
+    //std::cout << "b_angle: " << b_angle << std::endl;
+
     double power_ns3 = 0;
     double power_sionna = 0;
+    std::string los = "-";
 
-    if (m_sionna)
+    Ptr<Node> nodeA = a->GetObject<Node>();
+    NS_ABORT_MSG_IF(!nodeA, "Error: Ptr<Node> nodeA (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
+    Ptr<Node> nodeB = b->GetObject<Node>();
+    NS_ABORT_MSG_IF(!nodeB, "Error: Ptr<Node> nodeB (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
+
+
+    uint32_t idA = nodeA->GetId();
+    uint32_t idB = nodeB->GetId();
+    
+    std::pair<uint32_t, uint32_t> key(idA, idB);
+    std::pair<uint32_t, uint32_t> reverseKey(idB, idA);
+
+    Ptr<NetDevice> devA = nodeA->GetDevice(0);  // assuming it's the first device
+    Ptr<LteEnbNetDevice> enbDevA = devA->GetObject<LteEnbNetDevice>();
+    Ptr<LteUeNetDevice> ueDevA = devA->GetObject<LteUeNetDevice>();
+
+    //NodeContainer enbs = lteHelper->GetEnbNodes();
+
+    bool update_sionna = false;
+
+    uint32_t t_now = (uint32_t)Simulator::Now().GetMicroSeconds();
+
+    // Make sure that the loss propagation model assigns the last calculated value between sionna calls
+    if ((enbDevA && t_now % 1000000 == 0) || t_now < 1000) { //&& t_now > 0.5
+        update_sionna = true;
+    }
+    else if (ueDevA) {
+        // If node A is a UE, set power_ns3 and power_sionna to when nodeA=nodeB and nodeB=nodeA.
+        update_sionna = false;
+    }
+
+    if (m_sionna && update_sionna)
     {
-        // 2 - Retreive the NodeID associated to the Ptr<MobilityModel>
-        Ptr<Node> nodeA = a->GetObject<Node>();
-        NS_ABORT_MSG_IF(!nodeA, "Error: Ptr<MobilityModel> a (usually TX) not linked to a Node. This is needed for Sionna to track the object location!");
-        std::string a_id = "obj" + std::to_string(nodeA->GetId() + 1);
-        Ptr<Node> nodeB = b->GetObject<Node>();
-        NS_ABORT_MSG_IF(!nodeB, "Error: Ptr<MobilityModel> b (usually RX) not linked to a Node. This is needed for Sionna to track the object location!");
-        std::string b_id = "obj" + std::to_string(nodeB->GetId() + 1);
-        
-        // 3 - Location Update to Sionna
-        updateLocationInSionna(a_id, a_position, a_angle, a_velocity);
-        updateLocationInSionna(b_id, b_position, b_angle, b_velocity);
+
+        std::string obj_a = "enb";
+        std::string obj_b;
+
+        Ptr<NetDevice> devB = nodeB->GetDevice(0);  // assuming it's the first device
+        Ptr<LteEnbNetDevice> enbDevB = devB->GetObject<LteEnbNetDevice>();
+        Ptr<LteUeNetDevice> ueDevB = devB->GetObject<LteUeNetDevice>();
+
+        if (enbDevB) { 
+            obj_b = "enb";
+        }
+        else if (ueDevB) {
+            obj_b = "car";
+        }
+        std::string a_id = obj_a + std::to_string(idA - 2); // To change back: obj_a = "obj"
+        std::string b_id = obj_b + std::to_string(idB - 2); // To change back: obj_b = "obj"
+        if ((obj_a == "car" && obj_b == "enb1") || t_now == 0)
+        {
+            updateLocationInSionna(a_id, a_position, a_angle, a_velocity);
+            //std::cout << "updated obj_a pth loss" << std::endl;
+        }
+        if ((obj_b == "car" && a_id == "enb1") || t_now == 0)
+        {
+            updateLocationInSionna(b_id, b_position, b_angle, b_velocity);
+        }
+
+        //std::string a_id = "obj" + std::to_string(idA + 1); // To change back: obj_a = "obj"
+        //std::string b_id = "obj" + std::to_string(idB + 1); // To change back: obj_b = "obj"
+        //updateLocationInSionna(a_id, a_position, a_angle, a_velocity);
+        //updateLocationInSionna(b_id, b_position, b_angle, b_velocity);
 
         // 4 - Get Path Gain from Sionna and calculate power
         double path_gain = getPathGainFromSionna(a_position, b_position);
         power_sionna = txPowerDbm - path_gain;
-    }
 
-    power_ns3 = DoCalcRxPower(txPowerDbm, a, b);
+        power_ns3 = DoCalcRxPower(txPowerDbm, a, b);
 
-    if (m_sionna)
-    {   
         // 5 - Log Progress
         if (power_sionna != 0)
         {
-            std::string los = getLOSStatusFromSionna(a_position, b_position);
+            los = getLOSStatusFromSionna(a_position, b_position);
 
             if (sionna_verbose)
             {
@@ -128,9 +188,39 @@ PropagationLossModel::CalcRxPower(double txPowerDbm,
             std::string log_pl =
                 std::to_string(power_ns3) + "," + std::to_string(power_sionna) + "," + los;
             logProgress(2, log_pl);
+
         }
+
+        s_powerCache[key] = std::make_tuple(power_ns3, power_sionna, los);
+
+    } 
+    else if (m_sionna && !update_sionna && ueDevA)  // Double check the reverse key in between sionna calls here...
+    {
+        // nodeA is UE, retrieve from cache
+        //std::cout << "Retrieving cache for node " << idA << "," << idB << std::endl;
+        auto it = s_powerCache.find(reverseKey);
+        if (it != s_powerCache.end())
+        {
+            std::tie(power_ns3, power_sionna, los) = it->second;
+        }
+
+    }
+    else if (m_sionna && !update_sionna && enbDevA)  // Double check the reverse key in between sionna calls here...
+    {
+        // nodeA is UE, retrieve from cache
+        //std::cout << "Retrieving cache for node " << idA << "," << idB << std::endl;
+        auto it = s_powerCache.find(key);
+        if (it != s_powerCache.end())
+        {
+            std::tie(power_ns3, power_sionna, los) = it->second;
+        }
+
+    } else if (!m_sionna && !update_sionna)
+    {
+        power_ns3 = DoCalcRxPower(txPowerDbm, a, b);
     }
 
+    
     // 6 - Return value from Sionna instead of ns3 models (if necessary)
     double self = m_sionna && power_sionna != txPowerDbm ? power_sionna : power_ns3;
 
@@ -139,6 +229,33 @@ PropagationLossModel::CalcRxPower(double txPowerDbm,
         self = m_next->CalcRxPower(self, a, b);
     }
     return self;
+}
+
+std::pair<double, double> SionnaPowerLos(uint32_t idA,
+                                         uint32_t idB)
+{
+    
+    std::pair<uint32_t, uint32_t> key(idA, idB);
+    //std::pair<uint32_t, uint32_t> reverseKey(idB, idA);
+
+    double power_ns3 = 0;
+    double power_sionna = 0;
+    std::string los = "-";
+    double losDouble = 0;
+    
+    auto it = s_powerCache.find(key);
+    if (it != s_powerCache.end())
+    {
+        //std::cout << "Retrieving sPowerCache" << std::endl;
+        std::tie(power_ns3, power_sionna, los) = it->second;
+    }
+
+    if (los == "[True]")
+    {
+        losDouble = 1.0;
+    }
+
+    return std::make_pair(power_sionna, losDouble);
 }
 
 int64_t

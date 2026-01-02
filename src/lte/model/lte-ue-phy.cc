@@ -20,6 +20,7 @@
  *         Nicola Baldo <nbaldo@cttc.es>
  * Modified by:
  *          Vignesh Babu <ns3-dev@esk.fraunhofer.de> (RLF extensions)
+ *          Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 
 #include "lte-ue-phy.h"
@@ -623,6 +624,10 @@ LteUePhy::GenerateCqiRsrpRsrq(const SpectrumValue& sinr)
         double rsrp = (rbNum > 0) ? (sum / rbNum) : DBL_MAX;
         // averaged SINR among RBs
         double avSinr = ComputeAvgSinr(sinr);
+
+        m_lastRsrpDbm = 10.0 * std::log10(rsrp * 1000.0);  // RSRP in dBm
+        m_lastSinrDb = 10.0 * std::log10(avSinr);          // SINR in dB
+
 
         NS_LOG_INFO(this << " cellId " << m_cellId << " rnti " << m_rnti << " RSRP " << rsrp
                          << " SINR " << avSinr << " ComponentCarrierId "
@@ -1777,6 +1782,18 @@ LteUePhy::SwitchToState(State newState)
     NS_LOG_INFO(this << " cellId=" << m_cellId << " rnti=" << m_rnti << " UePhy "
                      << ToString(oldState) << " --> " << ToString(newState));
     m_stateTransitionTrace(m_cellId, m_rnti, oldState, newState);
+}
+
+double
+LteUePhy::GetSinrDb () const
+{
+    return m_lastSinrDb;
+}
+
+double
+LteUePhy::GetRsrpDbm () const
+{
+    return m_lastRsrpDbm;
 }
 
 } // namespace ns3

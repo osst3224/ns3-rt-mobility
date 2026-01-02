@@ -23,6 +23,7 @@
  *   Danilo Abrignani <danilo.abrignani@unibo.it> (Carrier Aggregation - GSoC 2015)
  *   Biljana Bojovic <biljana.bojovic@cttc.es> (Carrier Aggregation)
  *   Vignesh Babu <ns3-dev@esk.fraunhofer.de> (RLF extensions)
+ *   Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 
 #ifndef LTE_ENB_RRC_H
@@ -679,6 +680,9 @@ class LteEnbRrc : public Object
      *
      */
     LteEnbRrc();
+
+  public:
+    const std::map<uint16_t, Ptr<UeManager>>& GetUeMap() const { return m_ueMap; }
 
     /**
      * Destructor

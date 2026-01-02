@@ -19,6 +19,7 @@
  * Author: Marco Miozzo <mmiozzo@cttc.es>
  * Modified by:
  *          Vignesh Babu <ns3-dev@esk.fraunhofer.de> (RLF extensions)
+ *          Oscar Stenhammar <ostenh@kth.se> (NDT extensions)
  */
 
 #ifndef LTE_UE_PHY_H
@@ -56,6 +57,9 @@ class LteUePhy : public LtePhy
     friend class MemberLteUeCphySapProvider<LteUePhy>;
 
   public:
+    double GetSinrDb () const;
+    double GetRsrpDbm () const;
+
     /**
      * \brief The states of the UE PHY entity
      */
@@ -351,6 +355,9 @@ class LteUePhy : public LtePhy
     typedef void (*PowerSpectralDensityTracedCallback)(uint16_t rnti, Ptr<SpectrumValue> psd);
 
   private:
+    double m_lastSinrDb;
+    double m_lastRsrpDbm;
+
     /**
      * \brief Set transmit mode 1 gain function
      *
